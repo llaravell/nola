@@ -57,13 +57,7 @@ prompt_backup_dir() {
 # Function to prompt user for backup configuration
 setup_backup_config() {
     printf "Let's set up the backup configuration:\n"
-    
-    # Check if the configuration file exists to determine if it's the first setup
-    if [ ! -f "backup_config.conf" ]; then
-        printf "${YELLOW}This seems to be your first setup. Let's begin by configuring FTP information.${NC}\n"
-        prompt_ftp_info
-    fi
-
+    prompt_ftp_info
     prompt_container_name
     prompt_backup_dir
 }
@@ -72,7 +66,7 @@ setup_backup_config() {
 perform_backup_now() {
     # Check if configuration file exists
     if [ ! -f "backup_config.conf" ]; then
-        printf "${RED}Configuration file not found. Please set up the backup configuration first.${NC}\n"
+        printf "${RED}❌ Configuration file not found. Please set up the backup configuration first.${NC}\n"
         return 1
     fi
 
@@ -91,20 +85,20 @@ perform_automatic_backup() {
     # Prompt user for backup interval in hours
     read -p "Enter backup interval in hours (e.g., 24 for daily backup): " INTERVAL
     while ! [[ "$INTERVAL" =~ ^[0-9]+$ ]]; do
-        printf "${RED}Error: Invalid input. Please enter a valid integer.${NC}\n"
+        printf "${RED}❌ Error: Invalid input. Please enter a valid integer.${NC}\n"
         read -p "Enter backup interval in hours: " INTERVAL
     done
-    printf "${GREEN}Automatic backup scheduled every $INTERVAL hours.${NC}\n"
+    printf "${GREEN}⏰ Automatic backup scheduled every $INTERVAL hours.${NC}\n"
 
     # Check if cron job is already set
     if sudo crontab -l | grep -q 'backup.sh'; then
-        printf "${YELLOW}Automatic backup is already scheduled.${NC}\n"
+        printf "${YELLOW}⏰ Automatic backup is already scheduled.${NC}\n"
         return 1
     fi
 
     # Schedule the cron job
     (sudo crontab -l ; echo "0 */$INTERVAL * * * $(pwd)/backup.sh") | sudo crontab -
-    printf "${GREEN}Automatic backup scheduled successfully.${NC}\n"
+    printf "${GREEN}🎉 Automatic backup scheduled successfully.${NC}\n"
 }
 
 
@@ -112,13 +106,13 @@ perform_automatic_backup() {
 delete_automatic_backup() {
     # Check if cron job is set
     if ! sudo crontab -l | grep -q 'backup.sh'; then
-        printf "${YELLOW}Automatic backup is not scheduled.${NC}\n"
+        printf "${YELLOW}⏰ Automatic backup is not scheduled.${NC}\n"
         return 1
     fi
 
     # Delete the cron job
     sudo crontab -l | grep -v 'backup.sh' | sudo crontab -
-    printf "${GREEN}Automatic backup cron job deleted successfully.${NC}\n"
+    printf "${GREEN}🎉 Automatic backup cron job deleted successfully.${NC}\n"
 }
 
 # Function to change configuration file
@@ -129,7 +123,66 @@ change_config_file() {
     prompt_backup_dir
 
     # Save configuration to the new configuration file
-    printf "Configuration file updated successfully.\n"
+    printf "${GREEN}🎉 Configuration file updated successfully.${NC}\n"
+}
+
+# Function to restore backup
+restore_backup() {
+    printf "Enter the path to the backup file to restore (tab for suggestions): "
+    read -e BACKUP_FILE_PATH
+
+    # Check if configuration file exists
+    if [ ! -f "backup_config.conf" ]; then
+        printf "${RED}Configuration file not found. Please set up the backup configuration first.${NC}\n"
+        return 1
+    fi
+
+    # Source the configuration file
+    source backup_config.conf
+
+    # Check if Docker container name is defined in the configuration file
+    if [ -z "$CONTAINER_NAME" ]; then
+        printf "${RED}Docker container name is not defined in the configuration file.${NC}\n"
+        return 1
+    fi
+
+    # Check if the specified backup file exists
+    if [ ! -f "$BACKUP_FILE_PATH" ]; then
+        printf "${RED}Backup file not found.${NC}\n"
+        return 1
+    fi
+
+    # Extract backup file to the same directory
+    printf "${CYAN}📤 Extracting backup file...${NC}\n"
+    tar -xzvf "$BACKUP_FILE_PATH" -C "$(dirname "$BACKUP_FILE_PATH")" > /dev/null 2>&1
+
+    # Determine the extracted directory name
+    extracted_dir=$(basename "${BACKUP_FILE_PATH/mongodb_backup_/}" .tar.gz)
+
+    # Rename the extracted directory to 'asemooni'
+    printf "${CYAN}🖊 Renaming extracted directory to 'asemooni'...${NC}\n"
+    mv "$(dirname "$BACKUP_FILE_PATH")/$extracted_dir" "$(dirname "$BACKUP_FILE_PATH")/asemooni"
+
+    # Navigate to renamed directory if it exists
+    if [ -d "$(dirname "$BACKUP_FILE_PATH")/asemooni" ]; then
+        printf "${CYAN}⏩ Navigating to renamed directory: asemooni${NC}\n"
+        cd "$(dirname "$BACKUP_FILE_PATH")/asemooni" || { printf "${RED}Failed to navigate to renamed directory.${NC}\n"; return 1; }
+    else
+        printf "${RED}❌ Failed to determine renamed directory.${NC}\n"
+        return 1
+    fi
+
+    # Restore backup file from within the Docker container
+    printf "${CYAN}👨‍⚕️ Restoring backup file within Docker container...${NC}\n"
+    sudo docker cp "$(dirname "$BACKUP_FILE_PATH")/asemooni" "$CONTAINER_NAME":/restore 2> /dev/null
+    sudo docker exec "$CONTAINER_NAME" mongorestore --drop /restore 2> /dev/null
+
+    # Check the exit status of the restoration process
+    if [ $? -eq 0 ]; then
+        printf "${GREEN}🎉 Backup restored successfully.${NC}\n"
+    else
+        printf "${RED}❌ Failed to restore backup.${NC}\n"
+    fi
 }
 
 # Main function
@@ -145,8 +198,9 @@ main() {
     printf "${CYAN}3. Perform Automatic Backup${NC}\n"
     printf "${CYAN}4. Delete Automatic Backup${NC}\n"
     printf "${CYAN}5. Change Configuration File${NC}\n"
+    printf "${CYAN}6. Restore Backup${NC}\n"
 
-    read -p "Enter your choice (1, 2, 3, 4, or 5): " choice
+    read -p "Enter your choice (1, 2, 3, 4, 5, or 6): " choice
 
     case "$choice" in
         1) setup_backup_config ;;
@@ -154,13 +208,9 @@ main() {
         3) perform_automatic_backup ;;
         4) delete_automatic_backup ;;
         5) change_config_file ;;
-        *) printf "Invalid choice. Please enter 1, 2, 3, 4, or 5.\n" ;;
+        6) restore_backup ;;
+        *) printf "Invalid choice. Please enter 1, 2, 3, 4, 5, or 6.\n" ;;
     esac
-
-    # Check if configuration file exists after setup and display success message
-    if [ -f "backup_config.conf" ]; then
-        printf "${GREEN}Backup configuration is set up successfully.${NC}\n"
-    fi
 }
 
 # Execute main function
