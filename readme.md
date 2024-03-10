@@ -1,7 +1,7 @@
 <br/>
 <p align="center">
   <a href="https://github.com/llaravell/nola">
-    <img src="https://s8.uupload.ir/files/_1d723455-98ee-4477-9d3a-da0926624ae1_qhfr.jpeg" alt="Logo" width="80" height="80">
+    <img src="https://socialify.git.ci/llaravell/nola/image?description=1&font=Inter&forks=1&issues=1&language=1&name=1&owner=1&pattern=Circuit%20Board&pulls=1&stargazers=1&theme=Light" alt="logo" />
   </a>
 
   <h3 align="center">Nola</h3>
