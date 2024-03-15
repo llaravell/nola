@@ -44,6 +44,11 @@ backup() {
     # Upload backup file to FTP server
     printf "${CYAN}🚀 Uploading backup file to FTP server...${NC}\n"
 
+    # Check if FTP not install then install it
+    if ! command -v ftp &> /dev/null then
+      apt-get install ftp -y > /dev/null 2>&1;
+    fi
+
     # Transfer backup file using FTP
     ftp -n "$FTP_HOST" <<EOF > /dev/null 2>&1
 user "$FTP_USER" "$FTP_PASS"

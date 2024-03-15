@@ -82,6 +82,13 @@ perform_automatic_backup() {
         return 1
     fi
 
+    # Check if crobtab is installed
+    if ! command -v crontab &> /dev/null then
+        printf "${BLUE}🚀 Starting install cron ...${NC}";
+        apt-get install cron -y > /dev/null 2>&1;
+        printf "${GREEN}🎉 Cron is installed successfully${NC}";
+    fi
+
     # Prompt user for backup interval in hours
     read -p "Enter backup interval in hours (e.g., 24 for daily backup): " INTERVAL
     while ! [[ "$INTERVAL" =~ ^[0-9]+$ ]]; do
@@ -97,7 +104,7 @@ perform_automatic_backup() {
     fi
 
     # Schedule the cron job
-    (sudo crontab -l ; echo "0 */$INTERVAL * * * $(pwd)/backup.sh") | sudo crontab -
+    (crontab -l ; echo "0 */$INTERVAL * * * bash $(pwd)/backup.sh") | crontab -
     printf "${GREEN}🎉 Automatic backup scheduled successfully.${NC}\n"
 }
 
